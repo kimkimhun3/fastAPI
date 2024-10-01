@@ -3,7 +3,6 @@ from fastapi import FastAPI
 app = FastAPI()
 
 # A simple route that returns a welcome message
-# It will return Welcome to FastAPI!
 @app.get("/")
 def read_root():
     return {"message": "Welcome to FastAPI!"}
