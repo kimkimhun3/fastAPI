@@ -16,3 +16,7 @@ def greet_name(name: str):
 @app.get("/items/")
 def read_item(item_id: int, q: str = None):
     return {"item_id": item_id, "q": q}
+
+@app.get("/fakeitems/")
+def read_item(item_id: int, q: str = None):
+    return {"fakeitem_id": item_id, "q": q}
