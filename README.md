@@ -11,3 +11,4 @@
 - Python 3.7+
 - FastAPI
 - Uvicorn (for serving the application)
+- 
