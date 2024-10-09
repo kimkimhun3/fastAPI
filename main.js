@@ -10,7 +10,7 @@ function createWindow() {
     height: 600,
     webPreferences: {
       nodeIntegration: true, // Enable Node.js integration
-      nodeIntegrationInWorker: true,
+      nodeIntegrationInWorker: true, //node worker integration
       contextIsolation: false, // Disable context isolation
       preload: path.join(__dirname, 'preload.js'),
       backgroundThrottling: false, // Disable background throttling
