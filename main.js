@@ -16,7 +16,7 @@ function createWindow() {
       backgroundThrottling: false, // Disable background throttling
       devTools: false // Disable developer tools
     },
-    autoHideMenuBar: true
+    autoHideMenuBar: true //They said It's still not good performance.
   });
 
   mainWindow.loadFile('index.html');
