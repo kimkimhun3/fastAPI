@@ -641,16 +641,20 @@ function initializeServer() {
 //   });
 // }
 
-
-
+let delayVideoServer = null;
+let delayVideoClient = null;
+let delayAudioServer = null;
+let delayAudioClient = null;
+let packetQueueAudio = [];
+let packetQueueVideo = [];
 function handleDelayExecute() {
   decoderIp = document.getElementById("output-address").value;
   decoderPort = parseInt(document.getElementById("input-port").value, 10);
   decoderPort1 = parseInt(document.getElementById("input-port1").value, 10);
   delayTime = parseInt(document.getElementById("delay-times").value, 10);
 
-  if (!delayClient || !delayServer) {
-    console.log("Initializing delay server...");
+  if (!delayVideoClient || !delayVideoServer || !delayAudioClient || !delayAudioServer) {
+    console.log("Initializing delay servers...");
     initializeDelay();
   }
   // Enable stop button if delay is applied
@@ -662,48 +666,78 @@ function handleDelayExecute() {
 }
 
 function initializeDelay() {
-  delayServer = dgram.createSocket("udp4");
-  delayClient = dgram.createSocket("udp4");
+  delayVideoServer = dgram.createSocket("udp4");
+  delayVideoClient = dgram.createSocket("udp4");
+  delayAudioServer = dgram.createSocket("udp4");
+  delayAudioClient = dgram.createSocket("udp4");
 
-  delayClient.on("message", (msg, rinfo) => {
+  delayVideoClient.on("message", (msg, rinfo) => {
     if (delayTime > 0) {
-      packetQueue.push({ msg, rinfo, timestamp: Date.now() });
+      packetQueueVideo.push({ msg, rinfo, timestamp: Date.now() });
       if (!isDelaying) startDelayedForwarding();
     } else {
-      forwardPacket(msg);
+      forwardPacket(msg, rinfo, 'video');
     }
     // Enable stop button if delay is active
     document.getElementById("delay-stop").disabled = delayTime === 0;
   });
 
-  delayServer.on("listening", () => {
-    console.log(`Server listening on port ${decoderPort}`);
+  // Audio client handling
+  delayAudioClient.on("message", (msg, rinfo) => {
+    if (delayTime > 0) {
+      packetQueueAudio.push({ msg, rinfo, timestamp: Date.now() });
+      if (!isDelaying) startDelayedForwarding();
+    } else {
+      forwardPacket(msg, rinfo, 'audio');
+    }
+    // Enable stop button if delay is active
+    document.getElementById("delay-stop").disabled = delayTime === 0;
   });
 
-  delayClient.on("listening", () => {
-    console.log(`Client listening on port ${decoderPort}`);
+  delayVideoServer.on("listening", () => {
+    console.log(`Video server listening on port 6000`);
   });
-  delayClient.bind(decoderPort);
+  delayAudioServer.on("listening", () => {
+    console.log(`Audio server listening on port 6001`);
+  });
+  delayVideoClient.on("listening", () => {
+    console.log(`Video client listening on port 5004`);
+  });
+  delayAudioClient.on("listening", () => {
+    console.log(`Audio client listening on port 5006`);
+  });
+  // Note: Bind uses for receive
+  delayVideoClient.bind(decoderPort); // Video port for input
+  delayAudioClient.bind(decoderPort1); // Audio port for input
 }
+
 
 function startDelayedForwarding() {
   isDelaying = true;
   function processQueue() {
-    if (packetQueue.length === 0) {
+    if (packetQueueVideo.length === 0 && packetQueueAudio.length === 0) {
       isDelaying = false;
       document.getElementById("delay-stop").disabled = true; // Disable stop button
       return;
     }
     if (delayTime === 0) {
-      console.log("Delay removed. Flushing queue immediately.");
+      console.log("Delay removed. Flushing queues immediately.");
       flushQueue();
       return;
     }
     const now = Date.now();
-    while (packetQueue.length > 0 && now - packetQueue[0].timestamp >= delayTime) {
-      const { msg } = packetQueue.shift();
-      forwardPacket(msg);
+    // Process video queue
+    while (packetQueueVideo.length > 0 && now - packetQueueVideo[0].timestamp >= delayTime) {
+      const { msg } = packetQueueVideo.shift();
+      forwardPacket(msg, { port: decoderPort }, 'video');
     }
+
+    // Process audio queue
+    while (packetQueueAudio.length > 0 && now - packetQueueAudio[0].timestamp >= delayTime) {
+      const { msg } = packetQueueAudio.shift();
+      forwardPacket(msg, { port: decoderPort1 }, 'audio');
+    }
+
     setTimeout(processQueue);
   }
 
@@ -713,29 +747,39 @@ function startDelayedForwarding() {
 function flushQueue() {
   console.log("Flushing remaining packets in burst mode.");
 
-  while (packetQueue.length > 0) {
-    const { msg } = packetQueue.shift();
-    forwardPacket(msg);
+  // Flush video packets
+  while (packetQueueVideo.length > 0) {
+    const { msg } = packetQueueVideo.shift();
+    forwardPacket(msg, { port: decoderPort }, 'video');
+  }
+
+  // Flush audio packets
+  while (packetQueueAudio.length > 0) {
+    const { msg } = packetQueueAudio.shift();
+    forwardPacket(msg, { port: decoderPort1 }, 'audio');
   }
 
   isDelaying = false;
 }
 
-function forwardPacket(msg) {
-  delayServer.send(msg, decoderPort, decoderIp, (err) => {
-    if (err) console.error(`Error forwarding packet: ${err.message}`);
-  });
+function forwardPacket(msg, rinfo, type) {
+  if (type === 'video') {
+    delayVideoServer.send(msg, decoderPort, decoderIp, (err) => {
+      if (err) console.error(`Error forwarding video packet: ${err.message}`);
+    });
+  } else if (type === 'audio') {
+    delayAudioServer.send(msg, decoderPort1, decoderIp, (err) => {
+      console.log(`server got: ${msg}`);
+      if (err) console.error(`Error forwarding audio packet: ${err.message}`);
+    });
+  }
 }
 
 // Stop Button Click Handler
 document.getElementById("delay-stop").addEventListener("click", () => {
   console.log("Stop button clicked. Removing delay immediately.");
-
-  // Update delay time to 0
   delayTime = 0;
   document.getElementById("delay-times").value = 0;
-
-  // Flush queued packets and disable stop button
   flushQueue();
 });
 
