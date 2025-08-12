@@ -8,7 +8,7 @@
 - Async support: Native support for asynchronous programming.
 - Interactive Documentation: Swagger UI and ReDoc are automatically generated and can be accessed from the API.
 ### Requirements
-- Python 3.7+
+- Python 3.7+, apart from that no
 - FastAPI
 - Uvicorn (for serving the application)
 
